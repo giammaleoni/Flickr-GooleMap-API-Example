@@ -1,0 +1,225 @@
+
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+*{
+margin:0;
+padding:0;
+}
+
+html, body{
+  overflow: hidden;
+}
+#info{
+background-color:#333;
+font-family: Courier;
+font-size:10px;
+color:#fff;
+width:290px;
+height:20px;
+position: absolute;
+top:20px;
+left:120px;
+padding:2px;
+}
+
+table, tr {
+  width: 100%;
+  height: 100%;
+}
+
+td{
+  vertical-align: top;  /* centra il testo in vert */
+  text-align: center;   /* centra il testo in orizz */
+  height: 100%;
+}
+
+
+td.l {
+    width: 70%;
+}
+td.r {
+    width: 30%;
+}
+
+.foto-element{
+  width: 100%;
+}
+</style>
+<script src="http://code.jquery.com/jquery-latest.js"></script>
+<script type="text/javascript" src="http://maps.google.com/maps/api/js?sensor=true"></script>
+<script type="text/javascript">
+ /*
+
+ Ejercicio en clase
+
+ 1- Mejor si cambiais el api key de flickr (sino se puede llegar al límite de peticiones)
+ 2- Cambiar el tag de búsqueda
+ 3- Ordenar las fotos por más recientes en lugar de más interesantes
+ 4- Que la burbuja se cierre cuando abrimos otra
+ 5- Personalizar el diseño de la burbuja y añadir más info
+ 6- Centrar el mapa en una de las fotos cuando las cargamos
+ 7- Cambiar la imagen del marcador, que sea igual para todas las imágenes
+ 8- Mostrar más fotos, no sólo 10
+ 9- Añadir un enlace a la foto original en flickr
+ 10- Que al mover el mapa se refresque (cuidado puede dar problemas en el servidor de flickr)
+11- Personalizar el aspecto del mapa
+
+Otras sugerencias para mejorar el ejemplo o como ejercicio final
+
+
+- Que la foto sea un enlace a la página en flickr
+- Que se muestren más campos en la burbuja, autor, número de vistas, fecha...
+- Añadir una lista con las fotos encima del mapa (div con jquery)
+- Que al clicar en una foto de la lista el mapa se centre en esa foto
+- Cómo mostrar los marcadores si están en la misma posición?, pista, +Math.random()*0.01-0.005
+- etc, etc... hay miles de ideas
+
+*/
+
+var map; //fuera del contexto de las funciones para que sea siempre accesible
+var veces=0;
+var last_window;
+
+  function initialize() {
+    //iniciar el mapa en esta posición (se puede cambiar)
+    var latlng = new google.maps.LatLng(52.52812053454894, 13.403249502563526);
+    var myOptions = {
+      zoom: 14,
+      center: latlng,
+      mapTypeId: google.maps.MapTypeId.ROADMAP   //MapTypeId.SATELLITE, //cambiar por esto si queremos mostrar modo satelite
+    };
+     map = new google.maps.Map(document.getElementById("map_canvas"), myOptions);
+
+	 //evento que se llama cuando los límites del mapa han cambiado
+	 google.maps.event.addListener(map, 'bounds_changed', function() {
+		mapUpdated();
+	});
+	
+	var url = window.location.href;
+    var params = url.split('=');
+    
+    // example:
+    //flickrlin%20(1).html?tag=ciao
+    //params[0] = "file:///Volumes/Macintosh%20HD/Users/giamma_/Downloads/flickrlin%20(1).html?tag"
+    //params[1] = "ciao"
+	
+	var tag = params[1] || "berlin";
+	search(tag);
+
+
+
+
+
+  }
+
+
+  function search(tag){
+	//llamada a la api de flickr
+	var apikey="1791ca424d06bd05cb4424b3d35ee5b8"; //cambiar por la vuestra
+
+		//fotos ordenadas por interés
+     $.getJSON("https://api.flickr.com/services/rest/?method=flickr.photos.search&api_key="+apikey+"&tags="+tag+"&per_page=100&sort=date-taken-desc&has_geo=1&extras=date_taken,owner_name,views,geo,url_m&format=json&nojsoncallback=1",
+        function(data){
+
+
+
+		console.log(data);
+		console.log("He encontrado fotos: ",data.photos.photo.length)
+		$.each(data.photos.photo, function(i,item) {
+		  //para cada una de las fotos crear el fragmento de html
+		   var html="<h3><a href='"+item.url_m+"'>"+item.title+"</a></h3>"+
+		            "<p>Tomada por: "+item.ownername+"</p>"+
+		            "<p>Tomada el: "+item.datetaken.substr(8,2)+"/"+item.datetaken.substr(5,2)+"/"+item.datetaken.substr(0,4)+"</p>"+
+		            "<p>Visualizaciones: "+item.views+"</p>"+
+		            "<p><img width='200' src='"+item.url_m+"'></p>";
+		   
+
+		   //imagen en pequeño
+		   var mini=item.url_m.replace(".jpg","_s.jpg");
+
+			createMarker(map,new google.maps.LatLng(
+				item.latitude,
+				item.longitude),
+				mini,
+				html);
+
+        if(i==0){
+            var latLng = new google.maps.LatLng(item.latitude, item.longitude); //Makes a latlng
+            map.panTo(latLng);
+        }
+        
+        //lista de scrolling fotos (parte derecha de la pantalla)
+        var img_right = document.createElement( "img" ); //create the element <img>
+        img_right.setAttribute("class", "foto-element"); //set the class with the width
+        img_right.setAttribute("src", item.url_m);       //add the url to the image
+        img_right.innerHTML = item.title;                //add the title
+        $("#listado-foto").append(img_right);            //append the element to the container
+		});
+		
+
+
+	});
+  }
+
+  function mapUpdated(){
+	veces++;
+	//bounds=map.getBounds();
+
+	var center=map.getCenter();
+
+	$('#info').html(center.lat()+" "+center.lng());
+
+  }
+
+  //crea un marker con una burbuja de texto, y una imagen personalizada
+  function createMarker(map,point,image, txt) {
+
+
+	  var marker = new google.maps.Marker({
+		  position: point,
+		  map: map,
+		  icon: "http://icons.iconarchive.com/icons/icons-land/vista-map-markers/48/Map-Marker-Marker-Outside-Pink-icon.png" //image,
+	  });
+
+
+
+	var infowindow = new google.maps.InfoWindow({
+		content: txt
+	});
+	google.maps.event.addListener(marker, 'click', function() {
+
+  // abre un infowindow a la vez
+	  infowindow.open(map,marker);
+	if(last_window!=undefined){
+      last_window.close();
+    }
+      last_window=infowindow;
+	});
+
+
+	return marker;
+   }
+
+</script>
+</head>
+<body onload="initialize()">
+  <table>
+    <tr>
+      <td class="l">
+        <div id="map_canvas" style="width:100%; height:100%"></div>
+        <div id="info">Cargando...</div>
+      </td>
+      <td class="r">
+        <form>
+            <input type="search" name="tag" value="" placeHolder="Tag..." id="search">
+        </form>
+          <div id="listado-foto" style="overflow:scroll;height:100%">
+              <!-- lista delle foto -->
+          </div>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
